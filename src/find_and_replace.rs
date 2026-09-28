@@ -1,9 +1,8 @@
-use std::{env, fs};
+use regex::Regex;
+use std::{env, fs, process};
 use text_colorizer::*;
 
 #[derive(Debug)]
-#[allow(dead_code)]
-
 struct Arguments {
     pattern: String,
     replace: String,
@@ -12,12 +11,11 @@ struct Arguments {
 }
 
 fn print_help() {
-    println!("");
     eprintln!(
-        "{}- replace a string with a new string",
+        "{} - replace a string with a new string",
         "find and replace".green()
     );
-    eprint!("Usage:<target string> <replacement string> <INPUT FILE> <OUTPUT FILE>")
+    eprintln!("Usage: <target string> <replacement string> <INPUT FILE> <OUTPUT FILE>");
 }
 
 fn parse_args() -> Arguments {
@@ -25,10 +23,11 @@ fn parse_args() -> Arguments {
     if args.len() != 4 {
         print_help();
         eprintln!(
-            "{} wrong number of arguments passed. Expected 4 m got {}",
+            "{} wrong number of arguments passed. Expected 4, got {}",
             "Error".red().bold(),
             args.len()
-        )
+        );
+        process::exit(1);
     }
 
     Arguments {
@@ -43,32 +42,41 @@ fn read_and_write(args: &Arguments) {
     let data = match fs::read_to_string(&args.input_file) {
         Ok(f) => f,
         Err(e) => {
-            eprint!(
-                "{} failed to pass file {}: {:?}",
+            eprintln!(
+                "{} failed to read file {}: {:?}",
                 "Error".red().bold(),
                 args.input_file,
                 e
             );
-            std::process::exit(1)
+            process::exit(1);
         }
     };
 
-    match fs::write(&args.output_file, &data) {
-        Ok(_) => {}
+    let replaced_data = match replace(&args.pattern, &args.replace, &data) {
+        Ok(d) => d,
         Err(e) => {
-            eprintln!(
-                "{} failed to write to file {}: {:?}",
-                "Error".red().bold(),
-                args.input_file,
-                e
-            );
-            std::process::exit(1)
+            eprintln!("{} failed to replace text: {:?}", "Error".red().bold(), e);
+            process::exit(1);
         }
+    };
+
+    if let Err(e) = fs::write(&args.output_file, &replaced_data) {
+        eprintln!(
+            "{} failed to write to file {}: {:?}",
+            "Error".red().bold(),
+            args.output_file,
+            e
+        );
+        process::exit(1);
     }
+}
+
+fn replace(target: &str, rep: &str, data: &str) -> Result<String, regex::Error> {
+    let regex = Regex::new(target)?;
+    Ok(regex.replace_all(data, rep).to_string())
 }
 
 pub fn run() {
     let args = parse_args();
-
-    println!("{:?}", args)
+    read_and_write(&args);
 }
